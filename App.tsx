@@ -12,16 +12,23 @@ import Register from './components/Register';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(() => {
-    const saved = localStorage.getItem('tigre_user');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('tigre_user');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      return null;
+    }
   });
 
   const [config, setConfig] = useState<GameConfig>(() => {
-    const saved = localStorage.getItem('tigre_config');
-    return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
+    try {
+      const saved = localStorage.getItem('tigre_config');
+      return saved ? JSON.parse(saved) : DEFAULT_CONFIG;
+    } catch (e) {
+      return DEFAULT_CONFIG;
+    }
   });
 
-  // Persistência automática do usuário logado
   useEffect(() => {
     if (user) {
       localStorage.setItem('tigre_user', JSON.stringify(user));
@@ -30,13 +37,13 @@ const App: React.FC = () => {
     }
   }, [user]);
 
-  // Persistência das configurações do admin
   useEffect(() => {
     localStorage.setItem('tigre_config', JSON.stringify(config));
   }, [config]);
 
   const handleLogout = () => {
     setUser(null);
+    localStorage.removeItem('tigre_user');
   };
 
   const updateUser = (updates: Partial<User>) => {
@@ -46,11 +53,10 @@ const App: React.FC = () => {
   const addBet = (bet: Bet) => {
     setUser(prev => {
       if (!prev) return null;
-      // Garante que o saldo nunca fique negativo por erro de processamento
       const newBalance = prev.balance + bet.payout - (bet.type === BetType.REAL ? bet.amount : 0);
       return {
         ...prev,
-        betHistory: [bet, ...prev.betHistory].slice(0, 100), // Mantém histórico razoável
+        betHistory: [bet, ...prev.betHistory].slice(0, 50),
         balance: Math.max(0, newBalance),
         freeSpins: bet.type === BetType.FREE ? Math.max(0, prev.freeSpins - 1) : prev.freeSpins
       };
@@ -73,35 +79,27 @@ const App: React.FC = () => {
               <>
                 <div className="hidden md:flex flex-col items-end text-sm">
                   <span className="text-gray-400">Saldo: <span className="text-green-400 font-bold">R$ {user.balance.toFixed(2)}</span></span>
-                  <span className="text-gray-400">Bônus: <span className="text-yellow-400 font-bold">{user.freeSpins} Giros</span></span>
                 </div>
-                <Link to="/deposit" className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-full text-xs font-bold transition-all shadow-lg shadow-green-900/40 hover:scale-105 active:scale-95">
+                <Link to="/deposit" className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-full text-xs font-bold transition-all shadow-lg hover:scale-105 active:scale-95">
                   DEPOSITAR
                 </Link>
                 <div className="relative group">
-                   <button className="flex items-center space-x-1 focus:outline-none">
+                   <button className="flex items-center focus:outline-none">
                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-600 to-yellow-400 flex items-center justify-center font-bold border-2 border-white/20 shadow-md">
-                       {user.name[0].toUpperCase()}
+                       {user.name ? user.name[0].toUpperCase() : 'U'}
                      </div>
                    </button>
-                   <div className="absolute right-0 mt-2 w-52 glass-panel rounded-xl shadow-2xl py-3 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all z-50 transform translate-y-2 group-hover:translate-y-0">
-                     <div className="px-4 py-2 border-b border-white/5 mb-2">
-                       <p className="text-xs text-gray-400 truncate">{user.email}</p>
-                     </div>
-                     <Link to="/dashboard" className="block px-4 py-2 hover:bg-white/10 text-sm transition-colors"><i className="fa-solid fa-chart-line mr-2"></i>Minha Conta</Link>
-                     {isAdmin && <Link to="/admin" className="block px-4 py-2 hover:bg-white/10 text-sm text-yellow-500 font-bold transition-colors"><i className="fa-solid fa-crown mr-2"></i>Painel Admin</Link>}
-                     <button onClick={handleLogout} className="w-full text-left px-4 py-2 hover:bg-white/10 text-sm text-red-400 transition-colors mt-2 border-t border-white/5 pt-2"><i className="fa-solid fa-sign-out-alt mr-2"></i>Sair</button>
+                   <div className="absolute right-0 mt-2 w-52 glass-panel rounded-xl shadow-2xl py-3 invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all z-50">
+                     <Link to="/dashboard" className="block px-4 py-2 hover:bg-white/10 text-sm">Minha Conta</Link>
+                     {isAdmin && <Link to="/admin" className="block px-4 py-2 hover:bg-white/10 text-sm text-yellow-500 font-bold">Admin</Link>}
+                     <button onClick={handleLogout} className="w-full text-left px-4 py-2 hover:bg-white/10 text-sm text-red-400 border-t border-white/5 mt-2 pt-2">Sair</button>
                    </div>
                 </div>
               </>
             ) : (
               <div className="flex space-x-2">
-                <Link to="/login" className="px-5 py-2 rounded-full text-sm font-bold border border-yellow-500/50 hover:bg-yellow-500/10 transition-all">
-                  LOGIN
-                </Link>
-                <Link to="/register" className="px-5 py-2 rounded-full text-sm font-bold tiger-gradient text-white shadow-lg hover:brightness-110 transition-all">
-                  CADASTRAR
-                </Link>
+                <Link to="/login" className="px-5 py-2 rounded-full text-sm font-bold border border-yellow-500/50 hover:bg-yellow-500/10 transition-all">LOGIN</Link>
+                <Link to="/register" className="px-5 py-2 rounded-full text-sm font-bold tiger-gradient text-white shadow-lg transition-all">CADASTRAR</Link>
               </div>
             )}
           </div>
@@ -115,16 +113,12 @@ const App: React.FC = () => {
             <Route path="/dashboard" element={user ? <Dashboard user={user} onUpdate={updateUser} /> : <Navigate to="/login" />} />
             <Route path="/deposit" element={user ? <PixDeposit user={user} onDeposit={(amt) => updateUser({ balance: user.balance + amt })} /> : <Navigate to="/login" />} />
             <Route path="/admin" element={isAdmin ? <Admin config={config} setConfig={setConfig} /> : <Navigate to="/" />} />
+            <Route path="*" element={<Navigate to="/" />} />
           </Routes>
         </main>
 
-        <footer className="py-8 glass-panel border-t border-yellow-500/10 text-center text-xs text-gray-500 mt-auto">
-          <div className="flex justify-center space-x-6 mb-4">
-            <span className="opacity-50 hover:opacity-100 transition-opacity cursor-help">Jogo Responsável</span>
-            <span className="opacity-50 hover:opacity-100 transition-opacity cursor-help">Termos de Uso</span>
-            <span className="opacity-50 hover:opacity-100 transition-opacity cursor-help">Privacidade</span>
-          </div>
-          <p>© 2024 Fortune Tiger Oficial. Proibido para menores de 18 anos.</p>
+        <footer className="py-6 glass-panel border-t border-yellow-500/10 text-center text-xs text-gray-500 mt-auto">
+          <p>© 2024 Fortune Tiger Oficial. Jogue com responsabilidade.</p>
         </footer>
       </div>
     </HashRouter>
